@@ -107,42 +107,53 @@ const App = () => {
       }
       
       // 嘗試多種可能的欄位名稱（支援中英文）
-      const ticker = props['標的代碼']?.title?.[0]?.plain_text || 
-                     props['Ticker']?.title?.[0]?.plain_text || 
-                     props['代碼']?.title?.[0]?.plain_text ||
-                     props['股票代碼']?.title?.[0]?.plain_text ||
-                     props['Stock Code']?.title?.[0]?.plain_text ||
-                     props['代號']?.title?.[0]?.plain_text || '';
+      const ticker = props['標的名稱']?.select?.name ||
+                     props['標的']?.select?.name;
       
-      const date = props['日期']?.date?.start || 
+      const date = props['投資日期']?.date?.start ||
+                   props['日期']?.date?.start || 
                    props['Date']?.date?.start || 
                    props['交易日期']?.date?.start ||
                    props['Transaction Date']?.date?.start || '';
       
-      const type = props['類型']?.select?.name || 
+      const type = props['投資類型']?.select?.name ||
+                   props['類型']?.select?.name || 
                    props['Type']?.select?.name || 
                    props['交易類型']?.select?.name ||
                    props['Transaction Type']?.select?.name || '';
       
-      const shares = props['股數']?.number ?? 
+      const shares = (props['股數']?.number ?? 
                      props['Shares']?.number ?? 
                      props['數量']?.number ??
-                     props['Quantity']?.number ?? 0;
+                     props['Quantity']?.number) ?? 0;
       
-      const price = props['價格']?.number ?? 
+      const price = (props['股價']?.number ??
+                    props['價格']?.number ?? 
                     props['Price']?.number ?? 
                     props['成交價']?.number ??
-                    props['Transaction Price']?.number ?? 0;
+                    props['Transaction Price']?.number) ?? 0;
       
-      const cost = props['成本']?.number ?? 
-                   props['Cost']?.number ?? 
-                   props['總成本']?.number ??
-                   props['Total Cost']?.number ?? 0;
+      // 成本欄位可能是 formula 類型（計算欄位）
+      let costValue = 0;
+      const costProp = props['成本'];
+      if (costProp) {
+        if (costProp.type === 'formula' && costProp.formula?.type === 'number') {
+          costValue = costProp.formula.number ?? 0;
+        } else if (costProp.type === 'number') {
+          costValue = costProp.number ?? 0;
+        }
+      }
+      const cost = costValue || (props['Cost']?.number ?? props['總成本']?.number ?? props['Total Cost']?.number ?? 0);
       
-      const dividend = props['股利']?.number ?? 
+      const dividend = (props['現金股利']?.number ??
+                       props['股利']?.number ?? 
                        props['Dividend']?.number ?? 
                        props['股息']?.number ??
-                       props['Dividends']?.number ?? 0;
+                       props['Dividends']?.number) ?? 0;
+      
+      const fee = (props['手續費']?.number ?? props['Fee']?.number) ?? 0;
+      
+      const dividendPerShare = (props['每股股利']?.number ?? props['Dividend Per Share']?.number) ?? 0;
       
       const totalShares = props['總股數']?.number ?? 
                           props['Total Shares']?.number ?? 0;
@@ -160,31 +171,55 @@ const App = () => {
 
       // 如果沒有 ticker，跳過這筆記錄
       if (!ticker) {
-        console.warn(`第 ${index + 1} 筆記錄缺少標的代碼欄位，可用欄位:`, fieldNames);
+        console.warn(`第 ${index + 1} 筆記錄缺少「標的名稱」欄位，可用欄位:`, fieldNames);
         return;
       }
 
-      // 處理股票聚合資料（如果每筆記錄代表一個股票標的）
+      // 計算總成本（成本 = 股數 * 股價 + 手續費，如果成本欄位有值則優先使用）
+      const calculatedCost = shares * price + fee;
+      const finalCost = cost || calculatedCost || 0;
+      
+      // 計算總股利（現金股利 + 每股股利 * 股數）
+      const totalDividend = dividend + (dividendPerShare * shares);
+
+      // 初始化標的資料（如果尚未存在）
       if (!stocksMap[ticker]) {
         stocksMap[ticker] = {
           ticker,
-          totalShares: totalShares || 0,
-          totalCost: totalCost || 0,
-          totalDividends: totalDividends || 0,
-          defaultPrice: defaultPrice || 0
+          totalShares: 0,
+          totalCost: 0,
+          totalDividends: 0,
+          defaultPrice: defaultPrice || price || 0
         };
+      }
+      
+      // 根據「標的名稱」分組，將相同標的的所有交易記錄進行聚合計算
+      // 累加股數（根據交易類型決定是加還是減）
+      if (type === '賣出' || type === 'Sell' || type === '賣') {
+        stocksMap[ticker].totalShares -= Math.abs(shares);
       } else {
-        // 如果同一標的有多筆記錄，累加資料
-        stocksMap[ticker].totalShares += totalShares || 0;
-        stocksMap[ticker].totalCost += totalCost || 0;
-        stocksMap[ticker].totalDividends += totalDividends || 0;
-        if (defaultPrice > 0 && stocksMap[ticker].defaultPrice === 0) {
-          stocksMap[ticker].defaultPrice = defaultPrice;
-        }
+        stocksMap[ticker].totalShares += Math.abs(shares);
+      }
+      
+      // 累加成本（賣出時為負數，買入時為正數）
+      if (type === '賣出' || type === 'Sell' || type === '賣') {
+        stocksMap[ticker].totalCost -= Math.abs(finalCost);
+      } else {
+        stocksMap[ticker].totalCost += Math.abs(finalCost);
+      }
+      
+      // 累加股利（股利總是正數）
+      stocksMap[ticker].totalDividends += totalDividend;
+      
+      // 更新預設價格（使用最新的股價，優先使用有值的價格）
+      if (price > 0) {
+        stocksMap[ticker].defaultPrice = price;
+      } else if (defaultPrice > 0 && stocksMap[ticker].defaultPrice === 0) {
+        stocksMap[ticker].defaultPrice = defaultPrice;
       }
 
       // 處理交易明細（如果這筆記錄代表一筆交易）
-      if (date && (shares !== 0 || cost !== 0)) {
+      if (date && ticker && (shares !== 0 || finalCost !== 0)) {
         if (!transactionsMap[ticker]) {
           transactionsMap[ticker] = [];
         }
@@ -201,33 +236,24 @@ const App = () => {
           date: formattedDate,
           type: type || '買入',
           shares: shares || 0,
-          price: price || (cost && shares ? cost / shares : 0),
-          fee: 0,
-          cost: cost || (shares * price) || 0,
-          dividend: dividend || 0
+          price: price || (finalCost && shares ? (finalCost - fee) / shares : 0),
+          fee: fee || 0,
+          cost: finalCost,
+          dividend: totalDividend || 0
         });
       }
     });
 
-    // 如果沒有交易明細，但每筆記錄都有股數和成本，則從股票資料計算
-    // 這適用於每筆記錄代表一個股票標的的情況
-    Object.keys(stocksMap).forEach(ticker => {
-      if (!transactionsMap[ticker] || transactionsMap[ticker].length === 0) {
-        // 如果沒有交易明細，但股票資料存在，可以建立一個總結記錄
-        const stock = stocksMap[ticker];
-        if (stock.totalShares > 0 || stock.totalCost > 0) {
-          transactionsMap[ticker] = [{
-            date: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-            type: '持有',
-            shares: stock.totalShares,
-            price: stock.totalCost / stock.totalShares || 0,
-            fee: 0,
-            cost: stock.totalCost,
-            dividend: stock.totalDividends
-          }];
-        }
-      }
-    });
+    console.log('=== 資料解析完成 ===');
+    console.log('根據「標的名稱」欄位分組後的標的:', Object.keys(stocksMap));
+    console.log('各標的的聚合資料:', Object.keys(stocksMap).map(ticker => ({
+      ticker,
+      totalShares: stocksMap[ticker].totalShares,
+      totalCost: stocksMap[ticker].totalCost,
+      totalDividends: stocksMap[ticker].totalDividends,
+      defaultPrice: stocksMap[ticker].defaultPrice
+    })));
+    console.log('解析到的交易記錄:', Object.keys(transactionsMap).map(t => ({ ticker: t, count: transactionsMap[t].length })));
 
     // 轉換為陣列格式
     const stocks = Object.values(stocksMap).map((stock, idx) => ({
@@ -390,7 +416,7 @@ const App = () => {
             <div className="mt-1 flex items-center gap-3">
                <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
-                Notion 串接模式已啟用
+                2026/02/06 版本
               </p>
               {syncMessage.text && (
                 <span className={`text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 animate-in fade-in slide-in-from-left-2 ${
@@ -440,7 +466,7 @@ const App = () => {
           <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-slate-800">各標的獲利分析</h2>
-              <p className="text-xs text-slate-400 mt-1">模擬最新現價計算各標的的投資績效</p>
+              <p className="text-xs text-slate-400 mt-1">輸入最新現價計算各標的獲益狀況</p>
             </div>
             <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
               {['total', 'unrealized', 'dividend'].map(mode => (
@@ -461,6 +487,7 @@ const App = () => {
                 <tr className="bg-slate-50/80 text-slate-500 text-[10px] uppercase tracking-wider font-bold">
                   <th className="px-6 py-4">標的名稱</th>
                   <th className="px-6 py-4">剩餘股數</th>
+                  <th className="px-6 py-4">總成本</th>
                   <th className="px-6 py-4">平均成本</th>
                   {displayMode !== 'dividend' && (
                     <>
@@ -477,7 +504,7 @@ const App = () => {
               <tbody className="divide-y divide-slate-100 text-sm font-medium">
                 {analytics.stockDetails.length === 0 ? (
                   <tr>
-                    <td colSpan={displayMode === 'dividend' ? 5 : displayMode === 'unrealized' ? 6 : 7} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={displayMode === 'dividend' ? 6 : displayMode === 'unrealized' ? 7 : 8} className="px-6 py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center gap-2">
                         <PieChart className="text-slate-300" size={32} />
                         <p className="text-sm font-medium">尚無投資標的資料</p>
@@ -493,9 +520,10 @@ const App = () => {
 
                     return (
                       <tr key={stock.id} className="hover:bg-slate-50/50 transition">
-                        <td className="px-6 py-4 font-bold text-slate-900">{stock.ticker}</td>
-                        <td className="px-6 py-4 text-slate-700">{stock.totalShares.toLocaleString()}</td>
-                        <td className="px-6 py-4 text-slate-600">{stock.avgPrice.toFixed(2)}</td>
+                      <td className="px-6 py-4 font-bold text-slate-900">{stock.ticker}</td>
+                      <td className="px-6 py-4 text-slate-700">{stock.totalShares.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-slate-800 font-bold">{formatCurrency(stock.totalCost)}</td>
+                      <td className="px-6 py-4 text-slate-600">{stock.avgPrice.toFixed(2)}</td>
                         {displayMode !== 'dividend' && (
                           <>
                             <td className="px-6 py-4 bg-indigo-50/20">

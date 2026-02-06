@@ -55,6 +55,7 @@ const App = () => {
   
   // Sync Status
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingPrices, setIsSyncingPrices] = useState(false);
   const [syncMessage, setSyncMessage] = useState({ text: '', type: '' });
 
   // --- Initialize Config from Cookie ---
@@ -364,6 +365,87 @@ const App = () => {
     setCurrentPrices(prev => ({ ...prev, [ticker]: parseFloat(value) || 0 }));
   };
 
+  const syncCurrentPrices = async () => {
+    if (stocks.length === 0) {
+      setSyncMessage({ text: '請先同步 Notion 資料', type: 'error' });
+      setTimeout(() => setSyncMessage({ text: '', type: '' }), 3000);
+      return;
+    }
+
+    setIsSyncingPrices(true);
+    setSyncMessage({ text: '正在同步現價...', type: 'info' });
+
+    try {
+      const tickers = stocks.map(s => s.ticker);
+      
+      const response = await fetch('http://localhost:3001/api/sync-prices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ tickers })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '同步現價失敗');
+      }
+
+      // 檢查回應內容類型
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('非 JSON 回應:', text.substring(0, 200));
+        throw new Error('後端 API 返回非 JSON 格式，請確認 API 路由正確');
+      }
+
+      const data = await response.json();
+      
+      if (data.prices && Object.keys(data.prices).length > 0) {
+        // 更新現價
+        setCurrentPrices(prev => ({
+          ...prev,
+          ...data.prices
+        }));
+        
+        const failedCount = data.totalCount - data.successCount;
+        let message = `成功同步 ${data.successCount}/${data.totalCount} 個標的的現價`;
+        if (failedCount > 0 && data.failedTickers) {
+          message += `（${data.failedTickers.join(', ')} 無法取得）`;
+        }
+        
+        setSyncMessage({ 
+          text: message, 
+          type: data.successCount === data.totalCount ? 'success' : 'info'
+        });
+      } else {
+        setSyncMessage({ 
+          text: `無法取得現價資料（${data.totalCount} 個標的均失敗），請確認標的代碼是否正確或稍後再試`, 
+          type: 'error' 
+        });
+      }
+      
+    } catch (error) {
+      console.error('同步現價錯誤:', error);
+      
+      // 處理 JSON 解析錯誤
+      if (error.message.includes('JSON') || error.message.includes('Unexpected token')) {
+        setSyncMessage({ 
+          text: '後端 API 回應格式錯誤，請確認後端伺服器正常運行且 API 路由正確', 
+          type: 'error' 
+        });
+      } else {
+        setSyncMessage({ 
+          text: `同步現價失敗：${error.message}。請確認後端伺服器已啟動`, 
+          type: 'error' 
+        });
+      }
+    } finally {
+      setIsSyncingPrices(false);
+      setTimeout(() => setSyncMessage({ text: '', type: '' }), 5000);
+    }
+  };
+
   const analytics = useMemo(() => {
     const stockDetails = stocks.map(stock => {
       const currentPrice = currentPrices[stock.ticker] || 0;
@@ -437,6 +519,14 @@ const App = () => {
             >
               {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
               同步 Notion 資料
+            </button>
+            <button 
+              onClick={syncCurrentPrices}
+              disabled={isSyncingPrices || stocks.length === 0}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition shadow-md shadow-emerald-100 disabled:opacity-50"
+            >
+              {isSyncingPrices ? <Loader2 size={16} className="animate-spin" /> : <TrendingUp size={16} />}
+              同步現價
             </button>
             <button 
               onClick={() => setShowSettings(true)}

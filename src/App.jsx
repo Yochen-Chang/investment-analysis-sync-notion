@@ -623,9 +623,12 @@ const App = () => {
                                 className="w-20 px-2 py-1 border border-indigo-200 rounded-lg bg-white text-indigo-700 font-black text-xs outline-none shadow-sm focus:ring-2 focus:ring-indigo-400"
                               />
                             </td>
-                            <td className={`px-6 py-4 font-bold ${stock.unrealizedPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {formatCurrency(stock.marketValue)}
-                            </td>
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-slate-800">{formatCurrency(stock.marketValue)}</div>
+                            <div className={`text-xs font-medium mt-1 ${stock.unrealizedPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {stock.unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(stock.unrealizedPnL)}
+                            </div>
+                          </td>
                           </>
                         )}
                         {displayMode !== 'unrealized' && (

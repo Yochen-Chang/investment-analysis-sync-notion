@@ -1,5 +1,5 @@
 /**
- * 版本：Notion 串接版 (2026/02/06)
+ * 版本：Notion 串接版 (2026/02/08)
  * 功能：
  * 1. 支援 Notion API 串接：可設定 Token 與 Database ID。
  * 2. Cookie 儲存：設定資訊持久化，不需重複輸入。
@@ -487,59 +487,66 @@ const App = () => {
   }, [displayMode, analytics]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8 relative">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-3 sm:p-4 md:p-8 relative">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2 tracking-tight">
-              <Activity className="text-indigo-600" /> 投資損益監測儀表板
-            </h1>
-            <div className="mt-1 flex items-center gap-3">
-               <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
-                2026/02/06 版本
-              </p>
-              {syncMessage.text && (
-                <span className={`text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 animate-in fade-in slide-in-from-left-2 ${
-                  syncMessage.type === 'success' ? 'text-emerald-600 bg-emerald-50' : 
-                  syncMessage.type === 'error' ? 'text-rose-600 bg-rose-50' : 'text-indigo-600 bg-indigo-50'
-                }`}>
-                  {syncMessage.type === 'success' ? <CheckCircle2 size={12}/> : <AlertCircle size={12}/>}
-                  {syncMessage.text}
-                </span>
-              )}
+        <header className="mb-4 sm:mb-6 md:mb-8 flex flex-col gap-3 sm:gap-4 border-b border-slate-200 pb-4 sm:pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-2 tracking-tight">
+                <Activity className="text-indigo-600" size={20} /> 
+                <span className="hidden sm:inline">投資損益監測儀表板</span>
+                <span className="sm:hidden">投資儀表板</span>
+              </h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
+                <p className="text-slate-500 text-xs sm:text-sm font-medium flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+                  <span className="hidden sm:inline">2026/02/08 版本</span>
+                  <span className="sm:hidden">v2026/02/08</span>
+                </p>
+                {syncMessage.text && (
+                  <span className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+                    syncMessage.type === 'success' ? 'text-emerald-600 bg-emerald-50' : 
+                    syncMessage.type === 'error' ? 'text-rose-600 bg-rose-50' : 'text-indigo-600 bg-indigo-50'
+                  }`}>
+                    {syncMessage.type === 'success' ? <CheckCircle2 size={10}/> : <AlertCircle size={10}/>}
+                    <span className="max-w-[200px] sm:max-w-none truncate">{syncMessage.text}</span>
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button 
-              onClick={syncWithNotion}
-              disabled={isSyncing}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition shadow-md shadow-indigo-100 disabled:opacity-50"
-            >
-              {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-              同步 Notion 資料
-            </button>
-            <button 
-              onClick={syncCurrentPrices}
-              disabled={isSyncingPrices || stocks.length === 0}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition shadow-md shadow-emerald-100 disabled:opacity-50"
-            >
-              {isSyncingPrices ? <Loader2 size={16} className="animate-spin" /> : <TrendingUp size={16} />}
-              同步現價
-            </button>
-            <button 
-              onClick={() => setShowSettings(true)}
-              className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition shadow-sm text-slate-600"
-            >
-              <Settings size={16} />
-              設定
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={syncWithNotion}
+                disabled={isSyncing}
+                className="flex sm:inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 sm:gap-2 bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold hover:bg-indigo-700 transition shadow-md shadow-indigo-100 disabled:opacity-50"
+              >
+                {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                <span className="hidden sm:inline">同步 Notion 資料</span>
+                <span className="sm:hidden">同步資料</span>
+              </button>
+              <button 
+                onClick={syncCurrentPrices}
+                disabled={isSyncingPrices || stocks.length === 0}
+                className="flex sm:inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold hover:bg-emerald-700 transition shadow-md shadow-emerald-100 disabled:opacity-50"
+              >
+                {isSyncingPrices ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+                <span className="hidden sm:inline">同步現價</span>
+                <span className="sm:hidden">現價</span>
+              </button>
+              <button 
+                onClick={() => setShowSettings(true)}
+                className="flex sm:inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 sm:gap-2 bg-white border border-slate-200 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-slate-50 transition shadow-sm text-slate-600"
+              >
+                <Settings size={14} />
+                <span>設定</span>
+              </button>
+            </div>
           </div>
         </header>
 
         {/* 資產總覽卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
           <Card title="當前投資總成本" value={formatCurrency(analytics.totalPortfolioCost)} icon={<DollarSign className="text-blue-600" />} />
           <Card title="累計已收股息" value={formatCurrency(analytics.totalPortfolioDividends)} icon={<TrendingUp className="text-emerald-600" />} />
           <Card 
@@ -552,18 +559,18 @@ const App = () => {
         </div>
 
         {/* 1. 各標的獲利分析 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8 shadow-inner-white">
-          <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-4 sm:mb-8 shadow-inner-white">
+          <div className="p-6 border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-slate-800">各標的獲利分析</h2>
               <p className="text-xs text-slate-400 mt-1">輸入最新現價計算各標的獲益狀況</p>
             </div>
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
               {['total', 'unrealized', 'dividend'].map(mode => (
                 <button 
                   key={mode}
                   onClick={() => setDisplayMode(mode)}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${displayMode === mode ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${displayMode === mode ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   {mode === 'total' ? '含息' : mode === 'unrealized' ? '未實現' : '利息'}
                 </button>
@@ -571,199 +578,213 @@ const App = () => {
             </div>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 text-slate-500 text-[10px] uppercase tracking-wider font-bold">
-                  <th className="px-6 py-4">標的名稱</th>
-                  <th className="px-6 py-4">剩餘股數</th>
-                  <th className="px-6 py-4">總成本</th>
-                  <th className="px-6 py-4">平均成本</th>
-                  {displayMode !== 'dividend' && (
-                    <>
-                      <th className="px-6 py-4 bg-indigo-50/50 text-indigo-700 font-black">模擬現價</th>
-                      <th className="px-6 py-4">預估市值</th>
-                    </>
-                  )}
-                  {displayMode !== 'unrealized' && <th className="px-6 py-4">已領股息</th>}
-                  <th className="px-6 py-4 text-right font-black text-slate-600">
-                    {displayMode === 'unrealized' ? '價差報酬率' : displayMode === 'dividend' ? '成本殖利率' : '總報酬率 (含息)'}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm font-medium">
-                {analytics.stockDetails.length === 0 ? (
-                  <tr>
-                    <td colSpan={displayMode === 'dividend' ? 6 : displayMode === 'unrealized' ? 7 : 8} className="px-6 py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center gap-2">
-                        <PieChart className="text-slate-300" size={32} />
-                        <p className="text-sm font-medium">尚無投資標的資料</p>
-                        <p className="text-xs">請先同步 Notion 資料以查看投資分析</p>
-                      </div>
-                    </td>
+          <div className="overflow-x-auto sm:-mx-0">
+            <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 text-slate-500 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold">
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">標的</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">股數</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">總成本</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">均價</th>
+                    {displayMode !== 'dividend' && (
+                      <>
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 bg-indigo-50/50 text-indigo-700 font-black whitespace-nowrap">現價</th>
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span>市值</span>
+                            <span className="text-[8px] sm:text-[9px] font-normal text-slate-400 normal-case">(損益)</span>
+                          </div>
+                        </th>
+                      </>
+                    )}
+                    {displayMode !== 'unrealized' && <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">股息</th>}
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-black text-slate-600 whitespace-nowrap">
+                      <span className="hidden sm:inline">{displayMode === 'unrealized' ? '價差報酬率' : displayMode === 'dividend' ? '成本殖利率' : '總報酬率 (含息)'}</span>
+                      <span className="sm:hidden">報酬率</span>
+                    </th>
                   </tr>
-                ) : (
-                  analytics.stockDetails.map((stock) => {
-                    let activeROI = stock.totalROI;
-                    if (displayMode === 'unrealized') activeROI = stock.unrealizedROI;
-                    else if (displayMode === 'dividend') activeROI = stock.dividendROI;
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs sm:text-sm font-medium">
+                  {analytics.stockDetails.length === 0 ? (
+                    <tr>
+                      <td colSpan={displayMode === 'dividend' ? 6 : displayMode === 'unrealized' ? 7 : 8} className="px-4 sm:px-6 py-8 sm:py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center gap-2">
+                          <PieChart className="text-slate-300" size={24} />
+                          <p className="text-xs sm:text-sm font-medium">尚無投資標的資料</p>
+                          <p className="text-[10px] sm:text-xs">請先同步 Notion 資料以查看投資分析</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    analytics.stockDetails.map((stock) => {
+                      let activeROI = stock.totalROI;
+                      if (displayMode === 'unrealized') activeROI = stock.unrealizedROI;
+                      else if (displayMode === 'dividend') activeROI = stock.dividendROI;
 
-                    return (
-                      <tr key={stock.id} className="hover:bg-slate-50/50 transition">
-                      <td className="px-6 py-4 font-bold text-slate-900">{stock.ticker}</td>
-                      <td className="px-6 py-4 text-slate-700">{stock.totalShares.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-slate-800 font-bold">{formatCurrency(stock.totalCost)}</td>
-                      <td className="px-6 py-4 text-slate-600">{stock.avgPrice.toFixed(2)}</td>
-                        {displayMode !== 'dividend' && (
-                          <>
-                            <td className="px-6 py-4 bg-indigo-50/20">
-                              <input 
-                                type="number" step="0.01" value={currentPrices[stock.ticker] || ''}
-                                onChange={(e) => handlePriceChange(stock.ticker, e.target.value)}
-                                className="w-20 px-2 py-1 border border-indigo-200 rounded-lg bg-white text-indigo-700 font-black text-xs outline-none shadow-sm focus:ring-2 focus:ring-indigo-400"
-                              />
-                            </td>
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-slate-800">{formatCurrency(stock.marketValue)}</div>
-                            <div className={`text-xs font-medium mt-1 ${stock.unrealizedPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {stock.unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(stock.unrealizedPnL)}
+                      return (
+                        <tr key={stock.id} className="hover:bg-slate-50/50 transition">
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-slate-900 whitespace-nowrap">{stock.ticker}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-700 whitespace-nowrap">{stock.totalShares.toLocaleString()}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-800 font-bold whitespace-nowrap">{formatCurrency(stock.totalCost)}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-600 whitespace-nowrap">{stock.avgPrice.toFixed(2)}</td>
+                          {displayMode !== 'dividend' && (
+                            <>
+                              <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 bg-indigo-50/20 whitespace-nowrap">
+                                <input 
+                                  type="number" step="0.01" value={currentPrices[stock.ticker] || ''}
+                                  onChange={(e) => handlePriceChange(stock.ticker, e.target.value)}
+                                  className="w-16 sm:w-20 px-1.5 sm:px-2 py-1 border border-indigo-200 rounded-lg bg-white text-indigo-700 font-black text-[10px] sm:text-xs outline-none shadow-sm focus:ring-2 focus:ring-indigo-400"
+                                />
+                              </td>
+                              <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                                <div className="font-bold text-slate-800 text-xs sm:text-sm">{formatCurrency(stock.marketValue)}</div>
+                                <div className={`text-[10px] sm:text-xs font-medium mt-0.5 ${stock.unrealizedPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {stock.unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(stock.unrealizedPnL)}
+                                </div>
+                              </td>
+                            </>
+                          )}
+                          {displayMode !== 'unrealized' && (
+                            <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-emerald-600 whitespace-nowrap text-xs sm:text-sm">{formatCurrency(stock.totalDividends)}</td>
+                          )}
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right whitespace-nowrap">
+                            <div className={`inline-flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-black transition-all ${activeROI >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {activeROI >= 0 ? '+' : ''}{formatPercent(activeROI)}
                             </div>
                           </td>
-                          </>
-                        )}
-                        {displayMode !== 'unrealized' && (
-                          <td className="px-6 py-4 font-bold text-emerald-600">{formatCurrency(stock.totalDividends)}</td>
-                        )}
-                        <td className="px-6 py-4 text-right">
-                          <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black transition-all transform hover:scale-105 ${activeROI >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                            {activeROI >= 0 ? '+' : ''}{formatPercent(activeROI)}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
         {/* 2. 各標的購入詳細狀況 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden shadow-soft">
-          <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                <ListFilter size={20} />
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 overflow-hidden shadow-soft mt-4 sm:mt-0">
+          <div className="p-4 sm:p-6 border-slate-100 flex flex-col gap-3 sm:gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <ListFilter size={18} />
+                </div>
+                <h2 className="text-base sm:text-lg font-bold text-slate-800">各標的購入詳細狀況</h2>
               </div>
-              <h2 className="text-lg font-bold text-slate-800">各標的購入詳細狀況</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">標的篩選</span>
-              <select 
-                value={selectedTicker}
-                onChange={(e) => setSelectedTicker(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer hover:bg-white"
-                disabled={stocks.length === 0}
-              >
-                {stocks.length === 0 ? (
-                  <option value="">請先同步資料</option>
-                ) : (
-                  stocks.map(s => <option key={s.ticker} value={s.ticker}>{s.ticker}</option>)
-                )}
-              </select>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest hidden sm:inline">標的篩選</span>
+                <select 
+                  value={selectedTicker}
+                  onChange={(e) => setSelectedTicker(e.target.value)}
+                  className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 text-slate-700 text-xs sm:text-sm font-bold rounded-xl px-3 sm:px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer hover:bg-white"
+                  disabled={stocks.length === 0}
+                >
+                  {stocks.length === 0 ? (
+                    <option value="">請先同步資料</option>
+                  ) : (
+                    stocks.map(s => <option key={s.ticker} value={s.ticker}>{s.ticker}</option>)
+                  )}
+                </select>
+              </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-bold">
-                <tr>
-                  <th className="px-6 py-4 border-b border-slate-100">日期</th>
-                  <th className="px-6 py-4 border-b border-slate-100">類型</th>
-                  <th className="px-6 py-4 border-b border-slate-100 text-right">股數</th>
-                  <th className="px-6 py-4 border-b border-slate-100 text-right">成交價</th>
-                  <th className="px-6 py-4 border-b border-slate-100 text-right">總成本</th>
-                  <th className="px-6 py-4 border-b border-slate-100 text-right">股利</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {(!selectedTicker || (transactions[selectedTicker] || []).length === 0) ? (
+          <div className="overflow-x-auto sm:-mx-0 max-h-[400px] overflow-y-auto">
+            <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold">
                   <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center gap-2">
-                        <Database className="text-slate-300" size={32} />
-                        <p className="text-sm font-medium">尚無交易資料</p>
-                        <p className="text-xs">請先同步 Notion 資料以查看交易明細</p>
-                      </div>
-                    </td>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">日期</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">類型</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">股數</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">成交價</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">手續費</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">總成本</th>
+                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">股利</th>
                   </tr>
-                ) : (
-                  (transactions[selectedTicker] || []).map((tx, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/30 transition">
-                      <td className="px-6 py-4 text-slate-600 font-medium tabular-nums">{tx.date}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                          tx.type === '買入' ? 'bg-blue-100 text-blue-700' :
-                          tx.type === '賣出' ? 'bg-rose-100 text-rose-700' :
-                          tx.type === '定期定額' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
-                        }`}>
-                          {tx.type}
-                        </span>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                  {(!selectedTicker || (transactions[selectedTicker] || []).length === 0) ? (
+                    <tr>
+                      <td colSpan="7" className="px-4 sm:px-6 py-8 sm:py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center gap-2">
+                          <Database className="text-slate-300" size={24} />
+                          <p className="text-xs sm:text-sm font-medium">尚無交易資料</p>
+                          <p className="text-[10px] sm:text-xs">請先同步 Notion 資料以查看交易明細</p>
+                        </div>
                       </td>
-                      <td className={`px-6 py-4 text-right font-bold ${tx.shares < 0 ? 'text-rose-500' : 'text-slate-700'}`}>
-                        {tx.shares > 0 ? '+' : ''}{tx.shares.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 text-right text-slate-500 tabular-nums">{tx.price > 0 ? tx.price.toFixed(2) : '-'}</td>
-                      <td className={`px-6 py-4 text-right font-black tabular-nums ${tx.cost < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>{formatCurrency(tx.cost)}</td>
-                      <td className="px-6 py-4 text-right font-bold text-emerald-600 tabular-nums">{tx.dividend > 0 ? `+${formatCurrency(tx.dividend)}` : '-'}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    (transactions[selectedTicker] || []).map((tx, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/30 transition">
+                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-600 font-medium tabular-nums whitespace-nowrap text-[10px] sm:text-xs">{tx.date}</td>
+                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                          <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black uppercase ${
+                            tx.type === '買入' ? 'bg-blue-100 text-blue-700' :
+                            tx.type === '賣出' ? 'bg-rose-100 text-rose-700' :
+                            tx.type === '定期定額' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {tx.type}
+                          </span>
+                        </td>
+                        <td className={`px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-bold tabular-nums whitespace-nowrap text-xs sm:text-sm ${tx.shares < 0 ? 'text-rose-500' : 'text-slate-700'}`}>
+                          {tx.shares > 0 ? '+' : ''}{tx.shares.toLocaleString()}
+                        </td>
+                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right text-slate-500 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.price > 0 ? tx.price.toFixed(2) : '-'}</td>
+                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right text-slate-500 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.fee > 0 ? formatCurrency(tx.fee) : '-'}</td>
+                        <td className={`px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-black tabular-nums whitespace-nowrap text-xs sm:text-sm ${tx.cost < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>{formatCurrency(tx.cost)}</td>
+                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-bold text-emerald-600 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.dividend > 0 ? `+${formatCurrency(tx.dividend)}` : '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
         {/* Settings Modal */}
         {showSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <div className="flex items-center gap-2 font-bold text-slate-800">
-                  <Database className="text-indigo-600" size={18} /> Notion API 設定
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2 font-bold text-slate-800 text-sm sm:text-base">
+                  <Database className="text-indigo-600" size={16} /> Notion API 設定
                 </div>
                 <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600 transition p-1">
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
-              <div className="p-8 space-y-6">
+              <div className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Integration Token</label>
+                  <label className="block text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Integration Token</label>
                   <input 
                     type="password" 
                     value={notionToken}
                     onChange={(e) => setNotionToken(e.target.value)}
                     placeholder="secret_..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
                   />
-                  <p className="mt-2 text-[10px] text-slate-400">從 Notion Integration 頁面取得的 Access Token</p>
+                  <p className="mt-2 text-[9px] sm:text-[10px] text-slate-400">從 Notion Integration 頁面取得的 Access Token</p>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Database ID</label>
+                  <label className="block text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Database ID</label>
                   <input 
                     type="text" 
                     value={notionDbId}
                     onChange={(e) => setNotionDbId(e.target.value)}
                     placeholder="32碼十六進位字串"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
                   />
-                  <p className="mt-2 text-[10px] text-slate-400">Database 網址中的 ID 部分</p>
+                  <p className="mt-2 text-[9px] sm:text-[10px] text-slate-400">Database 網址中的 ID 部分</p>
                 </div>
                 <button 
                   onClick={saveSettings}
-                  className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-100"
+                  className="w-full bg-indigo-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 text-sm sm:text-base"
                 >
-                  <Save size={18} /> 儲存設定
+                  <Save size={16} /> 儲存設定
                 </button>
               </div>
             </div>
@@ -771,11 +792,11 @@ const App = () => {
         )}
 
         {/* Footer */}
-        <footer className="mt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-slate-400 text-[10px] font-bold uppercase tracking-widest border-t border-slate-200 pt-6">
-          <p>© 2026 投資損益管理系統 • Notion 串接版</p>
-          <div className="flex gap-4 items-center">
-            <span className="flex items-center gap-1 text-indigo-400"><ChevronRight size={10}/> API SYNC ENABLED</span>
-            <span className="flex items-center gap-1"><ChevronRight size={10}/> COOKIE PERSISTENCE</span>
+        <footer className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4 text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest border-t border-slate-200 pt-4 sm:pt-6">
+          <p className="text-center sm:text-left">© 2026 投資損益管理系統 • Notion 串接版</p>
+          <div className="flex flex-wrap justify-center gap-3 sm:gap-4 items-center">
+            <span className="flex items-center gap-1 text-indigo-400"><ChevronRight size={9}/> <span className="hidden sm:inline">API SYNC ENABLED</span><span className="sm:hidden">API</span></span>
+            <span className="flex items-center gap-1"><ChevronRight size={9}/> <span className="hidden sm:inline">COOKIE PERSISTENCE</span><span className="sm:hidden">COOKIE</span></span>
           </div>
         </footer>
       </div>
@@ -784,16 +805,16 @@ const App = () => {
 };
 
 const Card = ({ title, value, subValue, icon, isPositive = true }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-    <div className="flex items-center justify-between mb-4">
-      <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{title}</span>
-      <div className="p-2 bg-slate-50 rounded-xl shadow-inner text-indigo-500">{icon}</div>
+  <div className="bg-white p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-lg transition-all duration-300">
+    <div className="flex items-center justify-between mb-3 sm:mb-4">
+      <span className="text-slate-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest">{title}</span>
+      <div className="p-1.5 sm:p-2 bg-slate-50 rounded-lg sm:rounded-xl shadow-inner text-indigo-500">{icon}</div>
     </div>
     <div>
-      <div className="text-2xl font-black text-slate-900 tracking-tighter tabular-nums mb-1">{value}</div>
+      <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tighter tabular-nums mb-1">{value}</div>
       {subValue && (
-        <div className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md inline-flex ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-          {isPositive ? <TrendingUp size={10}/> : <TrendingDown size={10}/>} {subValue}
+        <div className={`flex items-center gap-1 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-md inline-flex ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+          {isPositive ? <TrendingUp size={9}/> : <TrendingDown size={9}/>} {subValue}
         </div>
       )}
     </div>

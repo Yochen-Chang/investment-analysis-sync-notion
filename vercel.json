@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/notion/query",
+      "destination": "/api/notion-query"
+    },
+    {
+      "source": "/api/sync-prices",
+      "destination": "/api/sync-prices"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

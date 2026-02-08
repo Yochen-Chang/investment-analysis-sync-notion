@@ -274,6 +274,10 @@ const App = () => {
     return { stocks, transactions: transactionsMap };
   };
 
+  // API 基礎網址（根據環境自動切換）
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 
+                       (import.meta.env.DEV ? 'http://localhost:3001' : '');
+
   const syncWithNotion = async () => {
     if (!notionToken || !notionDbId) {
       setSyncMessage({ text: '請先設定 Notion API 資訊', type: 'error' });
@@ -286,7 +290,8 @@ const App = () => {
 
     try {
       // 透過後端 API 代理呼叫 Notion API
-      const response = await fetch('http://localhost:3001/api/notion/query', {
+      const apiUrl = API_BASE_URL ? `${API_BASE_URL}/api/notion/query` : '/api/notion/query';
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -378,7 +383,8 @@ const App = () => {
     try {
       const tickers = stocks.map(s => s.ticker);
       
-      const response = await fetch('http://localhost:3001/api/sync-prices', {
+      const apiUrl = API_BASE_URL ? `${API_BASE_URL}/api/sync-prices` : '/api/sync-prices';
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

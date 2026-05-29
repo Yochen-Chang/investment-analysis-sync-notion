@@ -50,10 +50,14 @@ app.post('/api/notion/query', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('Notion API 代理錯誤:', error);
-    res.status(500).json({ 
-      error: '伺服器錯誤', 
-      message: error.message 
-    });
+    const causeCode = error.cause?.code;
+    let errorMessage = '伺服器錯誤';
+    if (causeCode === 'ENOTFOUND' || causeCode === 'ECONNREFUSED') {
+      errorMessage = '無法連線 Notion API，請檢查網路連線';
+    } else if (error.message && error.message !== 'fetch failed') {
+      errorMessage = error.message;
+    }
+    res.status(500).json({ error: errorMessage });
   }
 });
 
@@ -187,8 +191,17 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: '後端 API 運行中' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 後端伺服器運行在 http://localhost:${PORT}`);
+const server = app.listen(PORT, '127.0.0.1', () => {
+  console.log(`🚀 後端伺服器運行在 http://127.0.0.1:${PORT}`);
   console.log(`📡 Notion API 代理已啟用`);
   console.log(`💰 同步現價 API 已啟用: POST /api/sync-prices`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} 已被佔用，請先關閉舊程序：lsof -ti:${PORT} | xargs kill -9`);
+  } else {
+    console.error('❌ 伺服器啟動失敗:', err.message);
+  }
+  process.exit(1);
 });

@@ -40,12 +40,70 @@ const getCookie = (name) => {
   }, '');
 };
 
+const isSellType = (type) => type === '賣出' || type === 'Sell' || type === '賣';
+
+const parseTxDate = (dateStr) => new Date(dateStr.replace(/\//g, '-'));
+
+const STOCK_NAMES_STORAGE_KEY = 'stock_custom_names';
+
+const loadStockNames = () => {
+  try {
+    const raw = localStorage.getItem(STOCK_NAMES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveStockNames = (names) => {
+  localStorage.setItem(STOCK_NAMES_STORAGE_KEY, JSON.stringify(names));
+};
+
+const formatStockLabel = (ticker, customStockNames) => {
+  const name = customStockNames[ticker]?.trim();
+  return name ? `${name}（${ticker}）` : ticker;
+};
+
+const StockNameInput = ({ ticker, customStockNames, onChange }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const customName = customStockNames[ticker]?.trim() || '';
+  const displayLabel = customName ? `${customName}（${ticker}）` : ticker;
+
+  if (!isEditing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsEditing(true)}
+        className="text-left font-bold text-slate-900 text-[10px] sm:text-xs hover:text-indigo-600 transition-colors cursor-text tabular-nums"
+        title={customName ? `代碼：${ticker} · 點擊編輯` : '點擊設定自訂名稱'}
+      >
+        {displayLabel}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      type="text"
+      autoFocus
+      value={customStockNames[ticker] || ''}
+      placeholder={ticker}
+      title={`代碼：${ticker}`}
+      onChange={(e) => onChange(ticker, e.target.value)}
+      onBlur={() => setIsEditing(false)}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+      className="w-20 sm:w-28 px-1.5 sm:px-2 py-1 border border-indigo-200 rounded-lg bg-white text-slate-900 font-bold text-[10px] sm:text-xs outline-none focus:ring-2 focus:ring-indigo-400"
+    />
+  );
+};
+
 const App = () => {
   // --- States ---
   const [stocks, setStocks] = useState([]);
   const [transactions, setTransactions] = useState({});
   const [displayMode, setDisplayMode] = useState('total');
   const [currentPrices, setCurrentPrices] = useState({});
+  const [customStockNames, setCustomStockNames] = useState(() => loadStockNames());
   const [selectedTicker, setSelectedTicker] = useState('');
   
   // Notion Config
@@ -66,12 +124,50 @@ const App = () => {
     if (savedDbId) setNotionDbId(savedDbId);
   }, []);
 
-  // --- Auto-select first ticker when stocks are loaded ---
+  const activeStocks = useMemo(
+    () => stocks.filter(s => s.totalShares !== 0),
+    [stocks]
+  );
+
+  const closedPositionSummaries = useMemo(() => {
+    return stocks
+      .filter(s => s.totalShares === 0)
+      .map(stock => {
+        const txs = transactions[stock.ticker] || [];
+        const sortedAsc = [...txs].sort((a, b) => parseTxDate(a.date) - parseTxDate(b.date));
+        const buyTxs = sortedAsc.filter(tx => !isSellType(tx.type));
+        const sellTxs = sortedAsc.filter(tx => isSellType(tx.type));
+
+        const totalBuyCost = buyTxs.reduce((sum, tx) => sum + Math.abs(tx.cost), 0);
+        const totalSellProceeds = sellTxs.reduce((sum, tx) => sum + Math.abs(tx.cost), 0);
+        const realizedPnL = totalSellProceeds - totalBuyCost + stock.totalDividends;
+        const realizedROI = totalBuyCost > 0 ? (realizedPnL / totalBuyCost) * 100 : 0;
+
+        return {
+          ...stock,
+          firstBuyDate: buyTxs.length > 0 ? buyTxs[0].date : '-',
+          lastSellDate: sellTxs.length > 0 ? sellTxs[sellTxs.length - 1].date : '-',
+          totalBuyCost,
+          totalSellProceeds,
+          realizedPnL,
+          realizedROI,
+        };
+      })
+      .sort((a, b) => {
+        if (a.lastSellDate === '-') return 1;
+        if (b.lastSellDate === '-') return -1;
+        return parseTxDate(b.lastSellDate) - parseTxDate(a.lastSellDate);
+      });
+  }, [stocks, transactions]);
+
+  // --- Auto-select first active ticker when stocks are loaded ---
   useEffect(() => {
-    if (stocks.length > 0 && (!selectedTicker || !stocks.find(s => s.ticker === selectedTicker))) {
-      setSelectedTicker(stocks[0].ticker);
+    if (activeStocks.length > 0 && (!selectedTicker || !activeStocks.find(s => s.ticker === selectedTicker))) {
+      setSelectedTicker(activeStocks[0].ticker);
+    } else if (activeStocks.length === 0) {
+      setSelectedTicker('');
     }
-  }, [stocks, selectedTicker]);
+  }, [activeStocks, selectedTicker]);
 
   // --- Functions ---
   const saveSettings = () => {
@@ -274,9 +370,8 @@ const App = () => {
     return { stocks, transactions: transactionsMap };
   };
 
-  // API 基礎網址（根據環境自動切換）
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 
-                       (import.meta.env.DEV ? 'http://localhost:3001' : '');
+  // API 基礎網址（開發環境走 Vite proxy，生產環境走同網域或 VITE_API_URL）
+  const API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
   const syncWithNotion = async () => {
     if (!notionToken || !notionDbId) {
@@ -353,11 +448,15 @@ const App = () => {
       setCurrentPrices(prices);
       
       setSyncMessage({ text: `同步成功！已載入 ${parsedStocks.length} 個標的`, type: 'success' });
+      await syncCurrentPrices(parsedStocks);
       
     } catch (error) {
       console.error('Notion 同步錯誤:', error);
+      const isNetworkError = error.message === 'Failed to fetch' || error.name === 'TypeError';
       setSyncMessage({ 
-        text: `同步失敗：${error.message}。請確認後端伺服器已啟動（npm run dev:server）`, 
+        text: isNetworkError
+          ? '無法連線後端 API。請用 npm run dev:all 啟動（需同時跑前端與後端），若 port 3001 被佔用請先執行 lsof -ti:3001 | xargs kill -9'
+          : `同步失敗：${error.message}`,
         type: 'error' 
       });
     } finally {
@@ -370,8 +469,23 @@ const App = () => {
     setCurrentPrices(prev => ({ ...prev, [ticker]: parseFloat(value) || 0 }));
   };
 
-  const syncCurrentPrices = async () => {
-    if (stocks.length === 0) {
+  const handleStockNameChange = (ticker, value) => {
+    setCustomStockNames(prev => {
+      const next = { ...prev };
+      const trimmed = value.trim();
+      if (trimmed) {
+        next[ticker] = trimmed;
+      } else {
+        delete next[ticker];
+      }
+      saveStockNames(next);
+      return next;
+    });
+  };
+
+  const syncCurrentPrices = async (stockList) => {
+    const targetStocks = stockList ?? stocks;
+    if (targetStocks.length === 0) {
       setSyncMessage({ text: '請先同步 Notion 資料', type: 'error' });
       setTimeout(() => setSyncMessage({ text: '', type: '' }), 3000);
       return;
@@ -381,7 +495,7 @@ const App = () => {
     setSyncMessage({ text: '正在同步現價...', type: 'info' });
 
     try {
-      const tickers = stocks.map(s => s.ticker);
+      const tickers = targetStocks.map(s => s.ticker);
       
       const apiUrl = API_BASE_URL ? `${API_BASE_URL}/api/sync-prices` : '/api/sync-prices';
       const response = await fetch(apiUrl, {
@@ -467,9 +581,10 @@ const App = () => {
       };
     });
 
-    const totalPortfolioCost = stockDetails.reduce((sum, s) => sum + s.totalCost, 0);
-    const totalPortfolioValue = stockDetails.reduce((sum, s) => sum + s.marketValue, 0);
-    const totalPortfolioDividends = stockDetails.reduce((sum, s) => sum + s.totalDividends, 0);
+    const activeStockDetails = stockDetails.filter(s => s.totalShares !== 0);
+    const totalPortfolioCost = activeStockDetails.reduce((sum, s) => sum + s.totalCost, 0);
+    const totalPortfolioValue = activeStockDetails.reduce((sum, s) => sum + s.marketValue, 0);
+    const totalPortfolioDividends = activeStockDetails.reduce((sum, s) => sum + s.totalDividends, 0);
     const totalPnL = totalPortfolioValue + totalPortfolioDividends - totalPortfolioCost;
 
     return {
@@ -491,6 +606,11 @@ const App = () => {
       default: return { label: '總報酬 (含息)', roi: analytics.totalPortfolioROI, pnl: analytics.totalPortfolioPnL };
     }
   }, [displayMode, analytics]);
+
+  const visibleStockDetails = useMemo(
+    () => analytics.stockDetails.filter(stock => stock.totalShares !== 0),
+    [analytics.stockDetails]
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-3 sm:p-4 md:p-8 relative">
@@ -612,7 +732,7 @@ const App = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs sm:text-sm font-medium">
-                  {analytics.stockDetails.length === 0 ? (
+                  {visibleStockDetails.length === 0 ? (
                     <tr>
                       <td colSpan={displayMode === 'dividend' ? 6 : displayMode === 'unrealized' ? 7 : 8} className="px-4 sm:px-6 py-8 sm:py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center gap-2">
@@ -623,14 +743,20 @@ const App = () => {
                       </td>
                     </tr>
                   ) : (
-                    analytics.stockDetails.map((stock) => {
+                    visibleStockDetails.map((stock) => {
                       let activeROI = stock.totalROI;
                       if (displayMode === 'unrealized') activeROI = stock.unrealizedROI;
                       else if (displayMode === 'dividend') activeROI = stock.dividendROI;
 
                       return (
                         <tr key={stock.id} className="hover:bg-slate-50/50 transition">
-                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-slate-900 whitespace-nowrap">{stock.ticker}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                            <StockNameInput
+                              ticker={stock.ticker}
+                              customStockNames={customStockNames}
+                              onChange={handleStockNameChange}
+                            />
+                          </td>
                           <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-700 whitespace-nowrap">{stock.totalShares.toLocaleString()}</td>
                           <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-800 font-bold whitespace-nowrap">{formatCurrency(stock.totalCost)}</td>
                           <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-600 whitespace-nowrap">{stock.avgPrice.toFixed(2)}</td>
@@ -670,83 +796,179 @@ const App = () => {
         </div>
 
         {/* 2. 各標的購入詳細狀況 */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 overflow-hidden shadow-soft mt-4 sm:mt-0">
-          <div className="p-4 sm:p-6 border-slate-100 flex flex-col gap-3 sm:gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                  <ListFilter size={18} />
+        <div className="space-y-4 sm:space-y-6 mt-4 sm:mt-0">
+          {/* 2a. 持有中標的 */}
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 overflow-hidden shadow-soft">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col gap-3 sm:gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-1.5 sm:p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <ListFilter size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-800">各標的購入詳細狀況</h2>
+                    <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">持有中標的 · 交易明細</p>
+                  </div>
                 </div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-800">各標的購入詳細狀況</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest hidden sm:inline">標的篩選</span>
+                  <select 
+                    value={selectedTicker}
+                    onChange={(e) => setSelectedTicker(e.target.value)}
+                    className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 text-slate-700 text-xs sm:text-sm font-bold rounded-xl px-3 sm:px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer hover:bg-white"
+                    disabled={activeStocks.length === 0}
+                  >
+                    {activeStocks.length === 0 ? (
+                      <option value="">尚無持有中標的</option>
+                    ) : (
+                      activeStocks.map(s => (
+                        <option key={s.ticker} value={s.ticker}>
+                          {formatStockLabel(s.ticker, customStockNames)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest hidden sm:inline">標的篩選</span>
-                <select 
-                  value={selectedTicker}
-                  onChange={(e) => setSelectedTicker(e.target.value)}
-                  className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 text-slate-700 text-xs sm:text-sm font-bold rounded-xl px-3 sm:px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer hover:bg-white"
-                  disabled={stocks.length === 0}
-                >
-                  {stocks.length === 0 ? (
-                    <option value="">請先同步資料</option>
-                  ) : (
-                    stocks.map(s => <option key={s.ticker} value={s.ticker}>{s.ticker}</option>)
-                  )}
-                </select>
+            </div>
+
+            <div className="overflow-x-auto sm:-mx-0 max-h-[400px] overflow-y-auto">
+              <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">日期</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">類型</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">股數</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">成交價</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">手續費</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">總成本</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">股利</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                    {(!selectedTicker || (transactions[selectedTicker] || []).length === 0) ? (
+                      <tr>
+                        <td colSpan="7" className="px-4 sm:px-6 py-8 sm:py-12 text-center text-slate-400">
+                          <div className="flex flex-col items-center gap-2">
+                            <Database className="text-slate-300" size={24} />
+                            <p className="text-xs sm:text-sm font-medium">
+                              {activeStocks.length === 0 ? '尚無持有中標的' : '尚無交易資料'}
+                            </p>
+                            <p className="text-[10px] sm:text-xs">請先同步 Notion 資料以查看交易明細</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      (transactions[selectedTicker] || []).map((tx, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/30 transition">
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-600 font-medium tabular-nums whitespace-nowrap text-[10px] sm:text-xs">{tx.date}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                            <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black uppercase ${
+                              tx.type === '買入' ? 'bg-blue-100 text-blue-700' :
+                              tx.type === '賣出' ? 'bg-rose-100 text-rose-700' :
+                              tx.type === '定期定額' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {tx.type}
+                            </span>
+                          </td>
+                          <td className={`px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-bold tabular-nums whitespace-nowrap text-xs sm:text-sm ${tx.shares < 0 ? 'text-rose-500' : 'text-slate-700'}`}>
+                            {tx.shares > 0 ? '+' : ''}{tx.shares.toLocaleString()}
+                          </td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right text-slate-500 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.price > 0 ? tx.price.toFixed(2) : '-'}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right text-slate-500 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.fee > 0 ? formatCurrency(tx.fee) : '-'}</td>
+                          <td className={`px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-black tabular-nums whitespace-nowrap text-xs sm:text-sm ${tx.cost < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>{formatCurrency(tx.cost)}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-bold text-emerald-600 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.dividend > 0 ? `+${formatCurrency(tx.dividend)}` : '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto sm:-mx-0 max-h-[400px] overflow-y-auto">
-            <div className="inline-block min-w-full align-middle px-4 sm:px-0">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold">
-                  <tr>
-                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">日期</th>
-                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">類型</th>
-                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">股數</th>
-                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">成交價</th>
-                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">手續費</th>
-                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">總成本</th>
-                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">股利</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-                  {(!selectedTicker || (transactions[selectedTicker] || []).length === 0) ? (
+          {/* 2b. 已獲利了結（持有量 = 0） */}
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 overflow-hidden shadow-soft">
+            <div className="p-4 sm:p-6 border-b border-slate-100">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                  <CheckCircle2 size={18} />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-800">已獲利了結</h2>
+                  </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto sm:-mx-0">
+              <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50 text-slate-500 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold">
                     <tr>
-                      <td colSpan="7" className="px-4 sm:px-6 py-8 sm:py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center gap-2">
-                          <Database className="text-slate-300" size={24} />
-                          <p className="text-xs sm:text-sm font-medium">尚無交易資料</p>
-                          <p className="text-[10px] sm:text-xs">請先同步 Notion 資料以查看交易明細</p>
-                        </div>
-                      </td>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">標的</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">最初買入日期</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 whitespace-nowrap">最後賣出日期</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">累計投入</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">累計股息</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">獲利狀況</th>
+                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-slate-100 text-right whitespace-nowrap">報酬率</th>
                     </tr>
-                  ) : (
-                    (transactions[selectedTicker] || []).map((tx, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/30 transition">
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-600 font-medium tabular-nums whitespace-nowrap text-[10px] sm:text-xs">{tx.date}</td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
-                          <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black uppercase ${
-                            tx.type === '買入' ? 'bg-blue-100 text-blue-700' :
-                            tx.type === '賣出' ? 'bg-rose-100 text-rose-700' :
-                            tx.type === '定期定額' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
-                          }`}>
-                            {tx.type}
-                          </span>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                    {closedPositionSummaries.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="px-4 sm:px-6 py-8 sm:py-12 text-center text-slate-400">
+                          <div className="flex flex-col items-center gap-2">
+                            <Calendar className="text-slate-300" size={24} />
+                            <p className="text-xs sm:text-sm font-medium">尚無已了結標的</p>
+                            <p className="text-[10px] sm:text-xs">全部賣出後的標的將顯示於此</p>
+                          </div>
                         </td>
-                        <td className={`px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-bold tabular-nums whitespace-nowrap text-xs sm:text-sm ${tx.shares < 0 ? 'text-rose-500' : 'text-slate-700'}`}>
-                          {tx.shares > 0 ? '+' : ''}{tx.shares.toLocaleString()}
-                        </td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right text-slate-500 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.price > 0 ? tx.price.toFixed(2) : '-'}</td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right text-slate-500 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.fee > 0 ? formatCurrency(tx.fee) : '-'}</td>
-                        <td className={`px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-black tabular-nums whitespace-nowrap text-xs sm:text-sm ${tx.cost < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>{formatCurrency(tx.cost)}</td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-bold text-emerald-600 tabular-nums whitespace-nowrap text-xs sm:text-sm">{tx.dividend > 0 ? `+${formatCurrency(tx.dividend)}` : '-'}</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      closedPositionSummaries.map((pos) => (
+                        <tr key={pos.ticker} className="hover:bg-slate-50/30 transition">
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                            <StockNameInput
+                              ticker={pos.ticker}
+                              customStockNames={customStockNames}
+                              onChange={handleStockNameChange}
+                            />
+                          </td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-600 font-medium tabular-nums whitespace-nowrap text-[10px] sm:text-xs">
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar size={12} className="text-blue-400 shrink-0" />
+                              {pos.firstBuyDate}
+                            </span>
+                          </td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-slate-600 font-medium tabular-nums whitespace-nowrap text-[10px] sm:text-xs">
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar size={12} className="text-rose-400 shrink-0" />
+                              {pos.lastSellDate}
+                            </span>
+                          </td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right text-slate-700 font-bold tabular-nums whitespace-nowrap">{formatCurrency(pos.totalBuyCost)}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right font-bold text-emerald-600 tabular-nums whitespace-nowrap">
+                            {pos.totalDividends > 0 ? formatCurrency(pos.totalDividends) : '-'}
+                          </td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right whitespace-nowrap">
+                            <div className={`font-black tabular-nums ${pos.realizedPnL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {pos.realizedPnL >= 0 ? '+' : ''}{formatCurrency(pos.realizedPnL)}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">含股息已實現</div>
+                          </td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right whitespace-nowrap">
+                            <div className={`inline-flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-black ${pos.realizedROI >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {pos.realizedROI >= 0 ? '+' : ''}{formatPercent(pos.realizedROI)}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

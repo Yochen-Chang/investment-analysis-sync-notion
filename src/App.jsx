@@ -373,6 +373,21 @@ const App = () => {
   // API 基礎網址（開發環境走 Vite proxy，生產環境走同網域或 VITE_API_URL）
   const API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
+  const parseJsonResponse = async (response) => {
+    const text = await response.text();
+    if (!text || !text.trim()) {
+      throw new Error(
+        '後端 API 無回應（body 為空）。請用 npm run dev:all 同時啟動前端與後端；若 port 3001 被佔用請執行 lsof -ti:3001 | xargs kill -9'
+      );
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.error('非 JSON 回應:', text.substring(0, 200));
+      throw new Error('後端 API 返回非 JSON 格式，請確認後端已啟動且代理正確');
+    }
+  };
+
   const syncWithNotion = async () => {
     if (!notionToken || !notionDbId) {
       setSyncMessage({ text: '請先設定 Notion API 資訊', type: 'error' });
@@ -398,12 +413,11 @@ const App = () => {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '同步失敗');
-      }
+      const data = await parseJsonResponse(response);
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '同步失敗');
+      }
       
       // 檢查回應格式
       if (!data || !data.results || !Array.isArray(data.results)) {
@@ -411,9 +425,10 @@ const App = () => {
         throw new Error('Notion API 回應格式不正確');
       }
       
-      console.log('Notion API 回應:', {
+      console.log('Notion API 回應（分頁合併後）:', {
         object: data.object,
         resultsCount: data.results.length,
+        pageCount: data.page_count ?? 1,
         hasMore: data.has_more,
         nextCursor: data.next_cursor
       });
@@ -447,12 +462,19 @@ const App = () => {
       });
       setCurrentPrices(prices);
       
-      setSyncMessage({ text: `同步成功！已載入 ${parsedStocks.length} 個標的`, type: 'success' });
+      setSyncMessage({
+        text: `同步成功！已載入 ${data.results.length} 筆交易、${parsedStocks.length} 個標的`,
+        type: 'success'
+      });
       await syncCurrentPrices(parsedStocks);
       
     } catch (error) {
       console.error('Notion 同步錯誤:', error);
-      const isNetworkError = error.message === 'Failed to fetch' || error.name === 'TypeError';
+      const isNetworkError =
+        error.message === 'Failed to fetch' ||
+        error.name === 'TypeError' ||
+        error.message.includes('後端 API 無回應') ||
+        error.message.includes('Unexpected end of JSON');
       setSyncMessage({ 
         text: isNetworkError
           ? '無法連線後端 API。請用 npm run dev:all 啟動（需同時跑前端與後端），若 port 3001 被佔用請先執行 lsof -ti:3001 | xargs kill -9'
@@ -484,7 +506,8 @@ const App = () => {
   };
 
   const syncCurrentPrices = async (stockList) => {
-    const targetStocks = stockList ?? stocks;
+    // onClick 會傳入 SyntheticEvent，不可當 stockList 使用
+    const targetStocks = Array.isArray(stockList) ? stockList : stocks;
     if (targetStocks.length === 0) {
       setSyncMessage({ text: '請先同步 Notion 資料', type: 'error' });
       setTimeout(() => setSyncMessage({ text: '', type: '' }), 3000);
@@ -506,20 +529,11 @@ const App = () => {
         body: JSON.stringify({ tickers })
       });
 
+      const data = await parseJsonResponse(response);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '同步現價失敗');
+        throw new Error(data.error || '同步現價失敗');
       }
-
-      // 檢查回應內容類型
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('非 JSON 回應:', text.substring(0, 200));
-        throw new Error('後端 API 返回非 JSON 格式，請確認 API 路由正確');
-      }
-
-      const data = await response.json();
       
       if (data.prices && Object.keys(data.prices).length > 0) {
         // 更新現價
@@ -627,8 +641,8 @@ const App = () => {
               <div className="mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
                 <p className="text-slate-500 text-xs sm:text-sm font-medium flex items-center gap-1.5">
                   <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
-                  <span className="hidden sm:inline">2026/02/08 版本</span>
-                  <span className="sm:hidden">v2026/02/08</span>
+                  <span className="hidden sm:inline">2026/07/30 版本</span>
+                  <span className="sm:hidden">v2026/07/30</span>
                 </p>
                 {syncMessage.text && (
                   <span className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
@@ -652,7 +666,7 @@ const App = () => {
                 <span className="sm:hidden">同步資料</span>
               </button>
               <button 
-                onClick={syncCurrentPrices}
+                onClick={() => syncCurrentPrices()}
                 disabled={isSyncingPrices || stocks.length === 0}
                 className="flex sm:inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold hover:bg-emerald-700 transition shadow-md shadow-emerald-100 disabled:opacity-50"
               >

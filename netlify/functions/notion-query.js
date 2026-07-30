@@ -1,4 +1,51 @@
 // Netlify Serverless Function for Notion API proxy
+// Notion Database Query：自動分頁抓取全部資料（每頁最多 100 筆）
+async function queryAllNotionPages(token, databaseId, query = {}) {
+  const allResults = [];
+  let startCursor = undefined;
+  let hasMore = true;
+  let pageCount = 0;
+
+  while (hasMore) {
+    pageCount += 1;
+    const body = {
+      ...query,
+      page_size: 100,
+      ...(startCursor ? { start_cursor: startCursor } : {})
+    };
+
+    const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      const err = new Error(`Notion API 錯誤: ${errorText}`);
+      err.status = response.status;
+      throw err;
+    }
+
+    const data = await response.json();
+    allResults.push(...(data.results || []));
+    hasMore = data.has_more === true;
+    startCursor = data.next_cursor || undefined;
+  }
+
+  return {
+    object: 'list',
+    results: allResults,
+    has_more: false,
+    next_cursor: null,
+    page_count: pageCount
+  };
+}
+
 exports.handler = async (event, context) => {
   // 只允許 POST 請求
   if (event.httpMethod !== 'POST') {
@@ -9,7 +56,8 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { token, databaseId } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const { token, databaseId } = body;
 
     if (!token || !databaseId) {
       return {
@@ -20,29 +68,8 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 轉發請求到 Notion API
-    const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(JSON.parse(event.body).query || {})
-    });
+    const data = await queryAllNotionPages(token, databaseId, body.query || {});
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        statusCode: response.status,
-        body: JSON.stringify({ 
-          error: `Notion API 錯誤: ${errorText}` 
-        })
-      };
-    }
-
-    const data = await response.json();
-    
     return {
       statusCode: 200,
       headers: {
@@ -53,9 +80,9 @@ exports.handler = async (event, context) => {
   } catch (error) {
     console.error('Notion API 代理錯誤:', error);
     return {
-      statusCode: 500,
+      statusCode: error.status || 500,
       body: JSON.stringify({ 
-        error: '伺服器錯誤', 
+        error: error.status ? error.message : '伺服器錯誤', 
         message: error.message 
       })
     };
